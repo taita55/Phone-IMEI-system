@@ -1,0 +1,132 @@
+<?php
+// simulation.php
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>IMEI Triangulation Simulation - Rwanda</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      background-color: white;
+      text-align: center;
+      font-family: Arial, sans-serif;
+    }
+    #map {
+      height: 600px;
+      width: 80%;
+      margin: 20px auto;
+      border: 2px solid #000;
+    }
+    #info {
+      margin-top: 10px;
+    }
+    .tower-label span {
+      background: white;
+      padding: 2px 4px;
+      border: 1px solid black;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h2>IMEI Triangulation Simulation - Rwanda</h2>
+  <div id="map"></div>
+  <div id="info">
+    <p>Phone Coordinates: <span id="phone-coords">-</span></p>
+    <p>Nearest Tower: <span id="nearest-tower">-</span></p>
+    <p>Signal Strengths: <span id="signal-strengths">-</span></p>
+  </div>
+  
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    // Initialize the map centered on Kigali, Rwanda
+    var map = L.map('map').setView([-1.9536, 30.0606], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    
+    // Define three fixed cell towers in Kigali with labels
+    var towers = [
+      { id: 'Cell Tower 1', lat: -1.9530, lng: 30.0580 },
+      { id: 'Cell Tower 2', lat: -1.9550, lng: 30.0620 },
+      { id: 'Cell Tower 3', lat: -1.9510, lng: 30.0640 }
+    ];
+    
+    // Add tower markers: a small circle plus a labeled marker using a divIcon
+    towers.forEach(function(tower) {
+      // Circle marker for the tower
+      L.circleMarker([tower.lat, tower.lng], {
+        color: 'red',
+        fillColor: '#f03',
+        fillOpacity: 0.5,
+        radius: 8
+      }).addTo(map);
+      
+      // DivIcon label marker
+      var towerIcon = L.divIcon({
+        className: 'tower-label',
+        html: '<span>' + tower.id + '</span>',
+        iconSize: [80, 20],
+        iconAnchor: [40, -10]
+      });
+      L.marker([tower.lat, tower.lng], {icon: towerIcon}).addTo(map);
+    });
+    
+    // Add a draggable marker for the phone (starting at the center)
+    var phoneMarker = L.marker([-1.9536, 30.0606], { draggable: true }).addTo(map);
+    phoneMarker.bindPopup("Phone Location").openPopup();
+    
+    // Haversine function to compute distance (in km) between two lat/lng pairs
+    function getDistance(lat1, lng1, lat2, lng2) {
+      function toRad(x) { return x * Math.PI / 180; }
+      var R = 6371; // Earth's radius in km
+      var dLat = toRad(lat2 - lat1);
+      var dLng = toRad(lng2 - lng1);
+      var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+      var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+    
+    // Function to convert signal strength (1-5) into bars using Unicode blocks
+    function getBars(strength) {
+      return "▮".repeat(strength);
+    }
+    
+    // Update phone coordinates, nearest tower, and signal strengths
+    function updateInfo() {
+      var pos = phoneMarker.getLatLng();
+      document.getElementById('phone-coords').innerText = pos.lat.toFixed(5) + ", " + pos.lng.toFixed(5);
+      
+      var nearestTower = null;
+      var minDist = Infinity;
+      var signalInfo = "";
+      
+      towers.forEach(function(tower) {
+        var dist = getDistance(pos.lat, pos.lng, tower.lat, tower.lng);
+        // Determine the nearest tower
+        if (dist < minDist) {
+          minDist = dist;
+          nearestTower = tower.id;
+        }
+        // Calculate signal strength based on distance using an exponential decay
+        var strength = Math.round(5 * Math.exp(-dist/0.2));
+        if(strength < 1) strength = 1;
+        if(strength > 5) strength = 5;
+        signalInfo += tower.id + ": " + getBars(strength) + " (" + dist.toFixed(3) + " km) &nbsp;&nbsp;";
+      });
+      
+      document.getElementById('nearest-tower').innerText = nearestTower + " (" + minDist.toFixed(3) + " km)";
+      document.getElementById('signal-strengths').innerHTML = signalInfo;
+    }
+    
+    // Listen for drag events on the phone marker
+    phoneMarker.on('dragend', updateInfo);
+    // Initial update
+    updateInfo();
+  </script>
+</body>
+</html>
